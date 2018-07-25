@@ -16,8 +16,10 @@ from data import load_train_data, load_test_data, load_test_mask
 
 K.set_image_data_format('channels_last')  # TF dimension ordering in this code
 
-img_rows = 96
-img_cols = 96
+#img_rows = 96
+#img_cols = 96
+img_rows = 384
+img_cols = 384
 
 smooth = 1.
 
@@ -92,6 +94,12 @@ def preprocess(imgs):
     imgs_p = imgs_p[..., np.newaxis]
     return imgs_p
 
+def preprocess1(imgs):
+    imgs_p = imgs
+    
+    imgs_p = imgs_p[..., np.newaxis]
+    return imgs_p
+
 
 def train_and_predict():
     print('-'*30)
@@ -162,8 +170,8 @@ def train():     #modified by Sibaji
     print('-'*30)
     imgs_train, imgs_mask_train = load_train_data()
 
-    imgs_train = preprocess(imgs_train)
-    imgs_mask_train = preprocess(imgs_mask_train)
+    imgs_train = preprocess1(imgs_train)
+    imgs_mask_train = preprocess1(imgs_mask_train)
 
     imgs_train = imgs_train.astype('float32')
     mean = np.mean(imgs_train)  # mean for data centering
@@ -326,8 +334,8 @@ def predict_modified1():
     print('-'*30)
     imgs_train, imgs_mask_train = load_train_data()
 
-    imgs_train = preprocess(imgs_train)
-    imgs_mask_train = preprocess(imgs_mask_train)
+    imgs_train = preprocess1(imgs_train)
+    imgs_mask_train = preprocess1(imgs_mask_train)
 
     imgs_train = imgs_train.astype('float32')
     mean = np.mean(imgs_train)  # mean for data centering
@@ -342,9 +350,9 @@ def predict_modified1():
     print('Loading and preprocessing test data...')
     print('-'*30)
     imgs_test, imgs_test_mask_true = load_test_mask()
-    imgs_test = preprocess(imgs_test)
+    imgs_test = preprocess1(imgs_test)
     imgs_test1 =imgs_test 
-    imgs_test_mask_true = preprocess(imgs_test_mask_true)
+    imgs_test_mask_true = preprocess1(imgs_test_mask_true)
 
     imgs_test = imgs_test.astype('float32')
     imgs_test -= mean
