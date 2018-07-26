@@ -11,8 +11,9 @@ from keras.callbacks import ModelCheckpoint
 from keras import backend as K
 
 from data import load_train_data, load_test_data, load_test_mask
-
-
+from matplotlib import pyplot as plt
+import tensorflow as tf
+import csv
 
 K.set_image_data_format('channels_last')  # TF dimension ordering in this code
 
@@ -29,11 +30,49 @@ def load_test_data_modifed():
     return imgs_test, imgs_id
 
 
-def dice_coef(y_true, y_pred):
+def dice_coef(y_true, y_pred): 
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
     intersection = K.sum(y_true_f * y_pred_f)
     return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
+
+def dice(im1, im2, empty_score=1.0):  #different function copied from net
+    """
+    Computes the Dice coefficient, a measure of set similarity.
+    Parameters
+    ----------
+    im1 : array-like, bool
+        Any array of arbitrary size. If not boolean, will be converted.
+    im2 : array-like, bool
+        Any other array of identical size. If not boolean, will be converted.
+    Returns
+    -------
+    dice : float
+        Dice coefficient as a float on range [0,1].
+        Maximum similarity = 1
+        No similarity = 0
+        Both are empty (sum eq to zero) = empty_score
+        
+    Notes
+    -----
+    The order of inputs for `dice` is irrelevant. The result will be
+    identical if `im1` and `im2` are switched.
+    """
+    im1 = np.asarray(im1).astype(np.bool)
+    im2 = np.asarray(im2).astype(np.bool)
+
+    if im1.shape != im2.shape:
+        raise ValueError("Shape mismatch: im1 and im2 must have the same shape.")
+
+    im_sum = im1.sum() + im2.sum()
+    if im_sum == 0:
+        return empty_score
+
+    # Compute Dice coefficient
+    intersection = np.logical_and(im1, im2)
+    #print (im1.sum() )
+    #print (im2.sum() )
+    return 2. * intersection.sum() / im_sum
 
 
 def dice_coef_loss(y_true, y_pred):
@@ -390,12 +429,18 @@ def predict_modified1():
 
     #image_id1=0
     pred_dir = 'preds'
+    dice_coeff_each=[]
+    dice_coeff_each1=[]
     if not os.path.exists(pred_dir):
         os.mkdir(pred_dir)
     for image1, image, image_true,  image_id in zip(imgs_test1, imgs_mask_test, imgs_test_mask_true, imgs_id):
+        dice_coeff_each.append( dice_coef(image_true , image)) #calculate dice coefficients for each image
+
         image1=(image1[:, :, 0] * 1.).astype(np.uint8)
         image = (image[:, :, 0] * 255.).astype(np.uint8)
         image_true = (image_true[:, :, 0] * 255.).astype(np.uint8)
+        dice_coeff_each1.append([image_id, dice(image_true , image)]) #calculate dice coefficients for each image using new function
+
         print(image1.shape)
         print(image.shape)
         imsave(os.path.join(pred_dir, str(image_id) + '_org.png'), image1)
@@ -404,7 +449,31 @@ def predict_modified1():
         #image_id1=image_id1+1
         #if image_id1 > 10:
             #break
+    print('-'*30)
+    print('evaluting on test data...')
+    print('-'*30)
+    score = model.evaluate(imgs_test, imgs_test_mask_true, verbose=1)
+    print(score)
+    sess = tf.Session()
+    sess.run(tf.global_variables_initializer())
+    #print(sess.run(dice_coeff_each))
+    a=sess.run(dice_coeff_each)
+    #print(dice_coeff_each1)
+    sess.close()
+    print('-'*30)
+    print('Mean dice coefficients after averaging using default dice function...')
+    print('-'*30)
+    print(np.mean(a))
+
+   
     
+
+    with open("prediction1.csv", "w") as f:
+        writer = csv.writer(f)
+        writer.writerows(dice_coeff_each1)
+    with open("prediction.csv", "w") as f:
+        writer = csv.writer(f)
+        writer.writerows(np.column_stack((imgs_id,a)))
 
 
 
