@@ -2,13 +2,19 @@ from __future__ import print_function
 
 import os
 import numpy as np
-
+import pydicom
 from skimage.io import imsave, imread
+from pydicom.errors import InvalidDicomError
+import matplotlib.pyplot as plt
+import pickle
 
 data_path = 'train/'
 test_data_path ='test/'
+
 image_rows = 384
 image_cols = 384
+#mydir = '9003406-9279291/'
+intermidiate='intermidiate/'
 
 
 def create_train_data():
@@ -49,6 +55,89 @@ def create_train_data():
     np.save('imgs_mask_train.npy', imgs_mask)
     print('Saving to .npy files done.')
 
+def create_train_data_modified(list_dir):
+    # marge the .npy created by create_train_data_from_dicom for each .zip files and save for final training
+    # 
+    imgs_train=[]
+    imgs_mask_train=[]
+    for mydir in list_dir:
+        a=np.load(intermidiate+str(mydir[:-1])+'.npy')
+        print(a.shape)
+        imgs_train.extend( np.load(intermidiate+str(mydir[:-1])+'.npy'))
+        imgs_mask_train.extend(np.load(intermidiate+str(mydir[:-1])+'_mask.npy'))
+        print('Loading done.')
+    imgs_train=np.array(imgs_train)
+    imgs_mask_train=np.array(imgs_mask_train)
+    print(imgs_train.shape)
+    print(imgs_mask_train.shape)
+    np.save('imgs_train.npy', imgs_train)
+    np.save('imgs_mask_train.npy', imgs_mask_train)
+    print('Saving to .npy files done.')
+
+def create_train_data_from_dicom(mydir,data_path_local):
+    #read dicom files and save as .npy in 12bit format. Data are saved in intermidiate folder
+    # read the mask for corrosponding slice from matlab created folders and store as .npy file
+    # saves also the file order into a text file
+    #train_data_path = os.path.join(data_path, 'train')
+    count=0
+    train_data=[]
+    train_data_id=[]
+    train_data_mask=[]
+
+    for root, dirs, files in sorted(os.walk(mydir , topdown=False)):
+        #print(30*"--")
+        #print(dirs)
+        
+            
+        for name in sorted(files):
+            #print(os.path.join(root, name))
+            
+            try:
+                dataset=pydicom.dcmread(os.path.join(root, name))
+                if(count==0):
+                    print(os.path.join(root, name))
+                    count=1
+
+                # plot the image using matplotlib
+                #plt.imshow(dataset.pixel_array, cmap=plt.cm.bone)
+                #plt.show()
+                data=dataset.pixel_array
+                train_data.append(data)
+                train_data_id.append(os.path.join(root, name))
+                image_mask_name = data_path_local+root.split('/')[1]+'_'+root.split('/')[2] +'_'+name+ '_mask.tif'
+                img_mask = imread(image_mask_name, as_grey=True)
+                #plt.imshow(img_mask, cmap=plt.cm.bone)
+                #plt.show()            
+                train_data_mask.append(img_mask)
+                #print(type(data))
+                #count=count+1
+            except IOError:
+                #print(os.path.join(root, name))
+                #print('No such file')
+                continue
+            except InvalidDicomError:
+                #print(os.path.join(root, name))
+                #print('Invalid Dicom file')
+                continue
+            #if 'DICOM.zip'  in name:
+                #count=count+1
+
+        #for name in dirs:
+            #print(os.path.join(root, name))
+        if(count>0):
+            count=0
+            #break;
+    
+    
+    train_data = np.array(train_data)
+    print(train_data.shape)
+    train_data.dump(intermidiate+str(mydir[:-1])+'.npy')
+    train_data_mask = np.array(train_data_mask)
+    print(train_data_mask.shape)
+    train_data_mask.dump(intermidiate+str(mydir[:-1])+'_mask.npy')
+    
+    with open(intermidiate+str(mydir[:-1])+'_id.txt', 'w') as filehandle:  
+        filehandle.writelines("%s\n" % place for place in train_data_id)
 
 def load_train_data():
     imgs_train = np.load('imgs_train.npy')
@@ -200,9 +289,48 @@ def create_test_data_mask1():
         for listitem in imgs_id:
             filehandle.write('%s\n' % listitem)
 
-def load_test_mask():
-    imgs_test = np.load('imgs_test.npy')
-    imgs_mask  = np.load('imgs_mask_test.npy')
+def create_test_data_mask2(list_dir,candidate_number):
+     # create test.npy and test_mask.npy files from the intermidiate files
+    imgs_train=[]
+    imgs_mask_train=[]
+    imgs_id = []
+    for mydir in list_dir:
+        #a=np.load(intermidiate+str(mydir[:-1])+'.npy')
+        #print(a.shape)
+        imgs_train.extend( np.load(intermidiate+str(mydir[:-1])+'.npy'))
+        imgs_mask_train.extend(np.load(intermidiate+str(mydir[:-1])+'_mask.npy'))
+        location=intermidiate+str(mydir[:-1])+'_id.txt'
+        # open file and read the content in a list
+        with open(location, 'r') as filehandle:  
+            for line in filehandle:
+                # remove linebreak which is the last character of the string
+                currentPlace = line[:-1]
+                image_mask_name = currentPlace.split('/')[1]+'_'+currentPlace.split('/')[2] +'_'+currentPlace.split('/')[7]
+                #print(image_mask_name)
+                # add item to the list
+                imgs_id.append(image_mask_name)
+        print('Loading done.')
+    imgs_train=np.array(imgs_train)
+    imgs_mask_train=np.array(imgs_mask_train)
+    imgs_train=imgs_train[:candidate_number*160,:,:]
+    imgs_mask_train=imgs_mask_train[:candidate_number*160,:,:]
+    print(imgs_train.shape)
+    print(imgs_mask_train.shape)
+    np.save('imgs_test1.npy', imgs_train)
+    np.save('imgs_mask_test1.npy', imgs_mask_train)
+    print('Saving to .npy files done.')
+    count=0;
+    with open('listfile.txt', 'w') as filehandle:
+        for listitem in imgs_id:
+            filehandle.write('%s\n' % listitem)
+            count=count+1
+            if count >= (160*candidate_number):
+                break;
+                     
+
+def load_test_mask(test_npy,test_mask_npy):
+    imgs_test = np.load(test_npy)
+    imgs_mask  = np.load(test_mask_npy)
     return imgs_test, imgs_mask
 
 
@@ -216,4 +344,15 @@ def load_test_data():
 if __name__ == '__main__':
     #create_train_data()
     
-    create_test_data_mask1()
+    #create_test_data_mask1()
+      
+
+    #call below function to create the training image npy in intermidiate folder
+    """create_train_data_from_dicom('9309170-9496443/','train_9309170-9496443/')"""
+      
+    #create train.npy for final input, Give the folder names to create training images
+    """list_dir=['9003406-9279291/', '9500390-9698705/', '9720535-9897397/', '9902757-9993846/']
+    create_train_data_modified(list_dir)"""
+    # create test.npy for final input, Give the folder names to create test images
+    list_dir=['9309170-9496443/']
+    create_test_data_mask2(list_dir,1)

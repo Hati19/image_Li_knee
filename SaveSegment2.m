@@ -2,18 +2,20 @@
 %code for creating dataset 
 %SIBAJI GAJ
 %Used for creating training data only
+%it reads the DICOM image and the mat file and create .png for train image
+%and mask for each of the slice
 %%%%%%%%%%%%%%%%%%%%%%
 
 clear all;
 
-save_training_files='train/';
+save_training_files='train_9309170-9496443/';
 mkdir(save_training_files);
 
 
 working_directory=pwd;
 
 %give the  file name for creating training data
-mydir = '9003406-9279291/';
+mydir = '9309170-9496443/';
 
 %parse through file for each candidate folder
 d = dir(mydir);
@@ -44,7 +46,7 @@ function single_candidate(filetoprocess,candidatename,V_number,save_training_fil
 
 %read DICOM zip files and uncompress it
 dinfo = dir([filetoprocess '*.zip']);
-%unzip([filetoprocess dinfo(1).name], filetoprocess);
+unzip([filetoprocess dinfo(1).name], filetoprocess);
 %fetch the dirctory name of the DICOM files location
 mydir1 = filetoprocess;
 mydir1 = getdirdicom(mydir1);

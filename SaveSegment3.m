@@ -20,8 +20,8 @@ filenames = strcat(mydir, filesep, filenames);
 
 dirnames = {d([d.isdir]).name};
 dirnames = setdiff(dirnames, {'.', '..'});
-%for i=1:numel(dirnames)
-for i=1:4
+for i=1:numel(dirnames)
+%for i=1:4
       fulldirname1 = [mydir  dirnames{i}]; 
       d1 = dir(fulldirname1);
       dirnames1 = {d1([d1.isdir]).name};

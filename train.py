@@ -231,10 +231,29 @@ def train():     #modified by Sibaji
     print('-'*30)
     print('Fitting model...')
     print('-'*30)
-    model.fit(imgs_train, imgs_mask_train, batch_size=32, nb_epoch=20, verbose=1, shuffle=True,
+    history = model.fit(imgs_train, imgs_mask_train, batch_size=32, nb_epoch=100, verbose=1, shuffle=True,
               validation_split=0.2,
               callbacks=[model_checkpoint])
-
+    # list all data in history
+    print(history.history.keys())
+    # summarize history for accuracy
+    plt.plot(history.history['dice_coef'])
+    plt.plot(history.history['val_dice_coef'])
+    plt.title('model accuracy')
+    plt.ylabel('dice_coef')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    #plt.show()
+    plt.savefig('accuracy.png')
+    # summarize history for loss
+    plt.plot(history.history['loss'])
+    plt.plot(history.history['val_loss'])
+    plt.title('model loss')
+    plt.ylabel('loss')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'test'], loc='upper left')
+    #plt.show()
+    plt.savefig('loss.png')
 
 def predict():
     print('-'*30)
@@ -367,8 +386,8 @@ def predict_modified():
         imsave(os.path.join(pred_dir, str(image_id) + '_true.png'), image_true)
         image_id=image_id+1
     
-def predict_modified1():
-    print('-'*30)
+def predict_modified1(test_npy,test_mask_npy):
+    """print('-'*30)
     print('Loading and preprocessing train data...')
     print('-'*30)
     imgs_train, imgs_mask_train = load_train_data()
@@ -379,7 +398,9 @@ def predict_modified1():
     imgs_train = imgs_train.astype('float32')
     mean = np.mean(imgs_train)  # mean for data centering
     std = np.std(imgs_train)  # std for data normalization
-
+    print("mean and std")
+    print(mean)
+    print(std)"""
     print('-'*30)
     print('Creating and compiling model...')
     print('-'*30)
@@ -388,10 +409,13 @@ def predict_modified1():
     print('-'*30)
     print('Loading and preprocessing test data...')
     print('-'*30)
-    imgs_test, imgs_test_mask_true = load_test_mask()
+    imgs_test, imgs_test_mask_true = load_test_mask(test_npy,test_mask_npy)
     imgs_test = preprocess1(imgs_test)
     imgs_test1 =imgs_test 
     imgs_test_mask_true = preprocess1(imgs_test_mask_true)
+
+    mean = np.mean(imgs_test)  # mean for data centering
+    std = np.std(imgs_test)  # std for data normalization
 
     imgs_test = imgs_test.astype('float32')
     imgs_test -= mean
@@ -441,8 +465,8 @@ def predict_modified1():
         image_true = (image_true[:, :, 0] * 255.).astype(np.uint8)
         dice_coeff_each1.append([image_id, dice(image_true , image)]) #calculate dice coefficients for each image using new function
 
-        print(image1.shape)
-        print(image.shape)
+        #print(image1.shape)
+        #print(image.shape)
         imsave(os.path.join(pred_dir, str(image_id) + '_org.png'), image1)
         imsave(os.path.join(pred_dir, str(image_id) + '_pred.png'), image)
         imsave(os.path.join(pred_dir, str(image_id) + '_true.png'), image_true)
@@ -454,6 +478,8 @@ def predict_modified1():
     print('-'*30)
     score = model.evaluate(imgs_test, imgs_test_mask_true, verbose=1)
     print(score)
+    del imgs_test #clear some memory
+    del imgs_test1 
     sess = tf.Session()
     sess.run(tf.global_variables_initializer())
     #print(sess.run(dice_coeff_each))
@@ -481,4 +507,4 @@ if __name__ == '__main__':
     #train_and_predict()
     
     #train()
-    predict_modified1()
+    predict_modified1('imgs_test1.npy','imgs_mask_test1.npy')
