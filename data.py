@@ -74,6 +74,88 @@ def create_train_data_modified(list_dir):
     np.save('imgs_mask_train.npy', imgs_mask_train)
     print('Saving to .npy files done.')
 
+def create_train_data_modified1(list_dir):
+    # marge the .npy created by create_train_data_from_dicom for each .zip files and save for final training
+    # 
+    imgs_train=[]
+    imgs_mask_train=[]
+    for mydir in list_dir:
+        a=np.load(intermidiate+str(mydir[:-1])+'.npy')
+        print(a.shape)
+        imgs_train.extend( np.load(intermidiate+str(mydir[:-1])+'.npy'))
+        imgs_mask_train.extend(np.load(intermidiate+str(mydir[:-1])+'_mask.npy'))
+        print('Loading done.')
+    imgs_train=np.array(imgs_train)
+    imgs_mask_train=np.array(imgs_mask_train)
+    print(imgs_train.shape)
+    print(imgs_mask_train.shape)
+    
+    imgs_train = imgs_train.astype('float32')
+    mean = np.mean(imgs_train)  # mean for data centering
+    std = np.std(imgs_train)  # std for data normalization
+
+    imgs_train -= mean
+    imgs_train /= std
+
+    imgs_mask_train = imgs_mask_train.astype('float32')
+    imgs_mask_train /= 255.  # scale masks to [0, 1]
+
+
+def create_train_data_modified1(list_dir,train_dir):
+    # create .npy files from intermidiate folders .npy files and save them in train folder mean subtraction is done as preprocessing
+    # 
+    imgs_train=[]
+    imgs_mask_train=[]
+    imgs_id = []
+    for mydir in list_dir:
+        a=np.load(intermidiate+str(mydir[:-1])+'.npy')
+        print(a.shape)
+        imgs_train.extend( np.load(intermidiate+str(mydir[:-1])+'.npy'))
+        imgs_mask_train.extend(np.load(intermidiate+str(mydir[:-1])+'_mask.npy'))
+        location=intermidiate+str(mydir[:-1])+'_id.txt'
+        with open(location, 'r') as filehandle:  
+            for line in filehandle:
+                # remove linebreak which is the last character of the string
+                currentPlace = line[:-1]
+                image_mask_name = currentPlace.split('/')[1]+'_'+currentPlace.split('/')[2] +'_'+currentPlace.split('/')[7]
+                #print(image_mask_name)
+                # add item to the list
+                imgs_id.append(image_mask_name)
+        print('Loading done.')
+    imgs_train=np.array(imgs_train)
+    imgs_mask_train=np.array(imgs_mask_train)
+    print(imgs_train.shape)
+    print(imgs_mask_train.shape)
+    
+    imgs_train = imgs_train.astype('float32')
+    mean = np.mean(imgs_train)  # mean for data centering
+    std = np.std(imgs_train)  # std for data normalization
+    #print(std)
+    imgs_train -= mean
+    #imgs_train /= std
+    
+    imgs_mask_train = imgs_mask_train.astype('float32')
+    imgs_mask_train /= 255.  # scale masks to [0, 1]
+    
+    #train_dir='train'
+    i=0;
+    for  image, image_mask,  image_id in zip(imgs_train, imgs_mask_train, imgs_id):
+        np.save(os.path.join(train_dir, str(image_id) + '.npy'), np.array([image]))
+        np.save(os.path.join(train_dir, str(image_id) + '_mask.npy'), np.array([image_mask]))
+        
+        """image= np.array([image])
+        image = (image [0,:,:]* 255.).astype(np.uint8)
+        print(image.shape)
+        image_mask= np.array([image_mask])
+        image_mask = (image_mask [0,:,:]* 255.).astype(np.uint8)
+        print(image_mask.shape)
+        print(image_id)
+        imsave(os.path.join(train_dir, str(image_id) + '.png'), image)
+        imsave(os.path.join(train_dir, str(image_id) + '_mask.png'), image_mask)
+        i+=1
+        if i>100:
+            break"""
+
 def create_train_data_from_dicom(mydir,data_path_local):
     #read dicom files and save as .npy in 12bit format. Data are saved in intermidiate folder
     # read the mask for corrosponding slice from matlab created folders and store as .npy file
@@ -353,6 +435,9 @@ if __name__ == '__main__':
     #create train.npy for final input, Give the folder names to create training images
     """list_dir=['9003406-9279291/', '9500390-9698705/', '9720535-9897397/', '9902757-9993846/']
     create_train_data_modified(list_dir)"""
+    #create train.npy for final input, Give the folder names to create training images and save the .npy in train folder
+    list_dir=['9003406-9279291/','9500390-9698705/', '9720535-9897397/', '9902757-9993846/']
+    create_train_data_modified1(list_dir,'train1')
     # create test.npy for final input, Give the folder names to create test images
-    list_dir=['9309170-9496443/']
-    create_test_data_mask2(list_dir,1)
+    """list_dir=['9309170-9496443/']
+    create_test_data_mask2(list_dir,1)"""
