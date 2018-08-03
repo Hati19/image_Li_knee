@@ -19,6 +19,9 @@ from skimage.io import imsave, imread
 from pydicom.errors import InvalidDicomError
 import matplotlib.pyplot as plt
 import pickle
+import random
+from sklearn.model_selection import KFold, StratifiedKFold
+import timeit
 
 K.set_image_data_format('channels_last')  # TF dimension ordering in this code
 
@@ -41,7 +44,7 @@ def get_train_file_names(input_file_name):
         if 'mask'  in image_name:
             #print(os.path.join(input_file_name, image_name))
             continue
-        image_mask_name = image_name.split('.')[0] + '_mask.tif'
+        image_mask_name = image_name.split('.')[0] + '_mask.npy'
         train_id.append(os.path.join(input_file_name, image_name))
         #print(os.path.join(input_file_name, image_name))
         train_mask_id.append(os.path.join(input_file_name, image_mask_name))            
@@ -49,7 +52,25 @@ def get_train_file_names(input_file_name):
     
     return train_id,train_mask_id
 
-def generator(input_file_name, batch_size):
+
+def split_train_val(input_folder_name,percentage=.8):
+    images = sorted(os.listdir(input_folder_name))
+    total=len(images)
+    total_id=[]
+    for image_name in images:
+        #print(i)
+        if 'mask'  in image_name:
+            continue
+        total_id.append(os.path.join(input_folder_name, image_name))
+    #print(int(len(total_id)*percentage))
+    label=(int(len(total_id)*percentage))
+
+    random.shuffle(total_id)
+    train_id=total_id[:label]
+    val_id=total_id[label:]
+    return train_id,val_id
+
+"""def generator(input_file_name, batch_size):
     images = sorted(os.listdir(input_file_name))
     total = len(images) // 2
     imgs = np.ndarray((batch_size, img_rows, img_cols), dtype=np.uint8)
@@ -80,9 +101,43 @@ def generator(input_file_name, batch_size):
                  #print ('Hello')
                  i=0  
                  #print(i) 
+                 yield imgs[..., np.newaxis], imgs_mask[..., np.newaxis]"""
+
+def generator(input_file_name_list, batch_size):
+    #images = sorted(os.listdir(input_file_name))
+    #total = len(images) // 2
+    imgs = np.ndarray((batch_size, img_rows, img_cols), dtype=np.uint8)
+    imgs_mask = np.ndarray((batch_size, img_rows, img_cols), dtype=np.uint8)
+    i=0
+    while True:
+        for image_name in input_file_name_list:
+            #print(i)
+            if 'mask'  in image_name:
+                continue
+            image_mask_name = image_name.split('.')[0] + '_mask.npy'
+            #img = imread(os.path.join(train_data_path, image_name), as_grey=True)
+            img = np.load(image_name)
+            img=np.squeeze(img, axis=0)
+            #print(os.path.join(train_data_path, image_name))
+            #img_mask = imread(os.path.join(train_data_path, image_mask_name), as_grey=True)
+            img_mask = np.load( image_mask_name)
+            #print(image_mask_name)
+            img_mask=np.squeeze(img_mask, axis=0)
+            #print(img_mask.shape)
+            #print(os.path.join(train_data_path, image_mask_name))
+            img = np.array([img])
+            img_mask = np.array([img_mask])
+
+            imgs[i] = img
+            imgs_mask[i] = img_mask
+            i +=1
+            if i % batch_size==0:                 
+                 #print ('Hello')
+                 i=0  
+                 #print(i) 
                  yield imgs[..., np.newaxis], imgs_mask[..., np.newaxis]
 
-def generator_validation(input_file_name, batch_size):
+'''def generator_validation(input_file_name, batch_size):
     images = sorted(os.listdir(input_file_name))
     total = len(images) // 2
     imgs = np.ndarray((batch_size, img_rows, img_cols), dtype=np.uint8)
@@ -100,6 +155,40 @@ def generator_validation(input_file_name, batch_size):
             #print(os.path.join(input_file_name, image_name))
             #img_mask = imread(os.path.join(train_data_path, image_mask_name), as_grey=True)
             img_mask = np.load(os.path.join(input_file_name, image_mask_name))
+            img_mask=np.squeeze(img_mask, axis=0)
+            #print(img_mask.shape)
+            #print(os.path.join(train_data_path, image_mask_name))
+            img = np.array([img])
+            img_mask = np.array([img_mask])
+
+            imgs[i] = img
+            imgs_mask[i] = img_mask
+            i +=1
+            if i % batch_size==0:                 
+                 #print ('Hello')
+                 i=0  
+                 #print(i) 
+                 yield imgs[..., np.newaxis], imgs_mask[..., np.newaxis]'''
+
+def generator_validation(input_file_name_list, batch_size):
+    #images = sorted(os.listdir(input_file_name))
+    #total = len(images) // 2
+    imgs = np.ndarray((batch_size, img_rows, img_cols), dtype=np.uint8)
+    imgs_mask = np.ndarray((batch_size, img_rows, img_cols), dtype=np.uint8)
+    i=0
+    while True:
+        for image_name in input_file_name_list:
+            #print(image_name)
+            if 'mask'  in image_name:
+                continue
+            image_mask_name = image_name.split('.')[0] + '_mask.npy'
+            #img = imread(os.path.join(train_data_path, image_name), as_grey=True)
+            img = np.load(image_name)
+            img=np.squeeze(img, axis=0)
+            #print(os.path.join(input_file_name, image_name))
+            #img_mask = imread(os.path.join(train_data_path, image_mask_name), as_grey=True)
+            img_mask = np.load( image_mask_name)
+            #print(image_mask_name)
             img_mask=np.squeeze(img_mask, axis=0)
             #print(img_mask.shape)
             #print(os.path.join(train_data_path, image_mask_name))
@@ -341,19 +430,26 @@ def train():     #modified by Sibaji
     imgs_mask_train /= 255.  # scale masks to [0, 1]"""
     #val_data,val_mask_id=get_validation_data('Validation/')
     
-    train_id,train_mask_id=get_train_file_names('train/')
+    train_id,val_id=split_train_val('train/')
+    for image_name in  train_id:
+        print(image_name)
+    #train_id,train_mask_id=get_train_file_names('train/')
     #print(len(train_id)) 
     steps_per_epoch_value=len(train_id)/batch_size
     print (steps_per_epoch_value)
-    validation_id,validation_mask_id=get_train_file_names('Validation/')
+    #validation_id,validation_mask_id=get_train_file_names('Validation/')
     #print(len(train_id)) 
-    steps_per_epoch_validation_value=len(train_id)/batch_size
+    steps_per_epoch_validation_value=len(val_id)/batch_size
+    print (steps_per_epoch_validation_value)
+
+
     print (steps_per_epoch_validation_value)
     print('-'*30)
     print('Creating and compiling model...')
     print('-'*30)
     model = get_unet()
-    filepath="weights/weights-improvement-{epoch:02d}-{val_loss:.2f}.hdf5"
+    #filepath="weights/weights-improvement-{epoch:02d}-{val_loss:.2f}.hdf5"
+    filepath='weights.h5'
     model_checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only= True)
 
     print('-'*30)
@@ -362,8 +458,8 @@ def train():     #modified by Sibaji
     """history = model.fit(imgs_train, imgs_mask_train, batch_size=32, nb_epoch=100, verbose=1, shuffle=True,
               validation_split=0.2,
               callbacks=[model_checkpoint])"""
-    history =model.fit_generator(generator('train/', batch_size),
-                    steps_per_epoch=steps_per_epoch_value, epochs=2,validation_data=generator_validation('Validation/',batch_size),
+    history =model.fit_generator(generator(train_id, batch_size),
+                    steps_per_epoch=steps_per_epoch_value, epochs=2,validation_data=generator_validation(val_id,batch_size),
                          validation_steps=steps_per_epoch_validation_value,
                             callbacks=[model_checkpoint])
     # list all data in history
@@ -386,6 +482,110 @@ def train():     #modified by Sibaji
     plt.legend(['train', 'test'], loc='upper left')
     #plt.show()
     plt.savefig('loss.png')
+
+
+def train1(input_training_dir):     #modified by Sibaji
+    #val_data,val_mask_id=get_validation_data('Validation/')
+    #modified for folds done training and evaluation together for folds
+    '''train_id,val_id=split_train_val(input_training_dir)
+    for image_name in  train_id:
+        print(image_name)'''
+
+   
+    total_id,total_mask_id=get_train_file_names(input_training_dir)
+    seed = 7
+    start_time = timeit.default_timer()
+
+     
+    #kfold = StratifiedKFold(n_splits=2, shuffle=True, random_state=seed)
+    kfold = KFold(6, False, 7)
+    fold_number=0
+    cvscores = []
+    
+    for train, test in kfold.split(total_id):
+        fold_number+=1
+        print(30*'-')
+        print('fold Number:%d'%fold_number)
+        # print(train)
+        train_id_temp=[total_id[i] for i in train]
+        np.random.shuffle(train_id_temp)
+        label=int(len(train_id_temp)*.8)
+        train_id=train_id_temp[:label]
+        val_id=train_id_temp[label:]
+        test_id=[total_id[i] for i in test]
+        print(type(train_id))
+         
+        print(len(train_id))
+        print(len(val_id))
+        print(len(test_id))
+        #for i in test_id:
+           # print(i)
+        with open('output/test_id_flod'+str(fold_number)+'.txt', 'w') as filehandle:  
+             filehandle.writelines("%s\n" % place  for place in test_id if '160' in place)
+        #train_id,train_mask_id=get_train_file_names('train/')
+        #print(len(train_id)) 
+        steps_per_epoch_value=len(train_id)/batch_size
+        print (steps_per_epoch_value)
+        #validation_id,validation_mask_id=get_train_file_names('Validation/')
+        #print(len(train_id)) 
+        steps_per_epoch_validation_value=len(val_id)/batch_size
+        print (steps_per_epoch_validation_value)
+
+        steps_per_epoch_test_value=len(test_id)/batch_size
+        print (steps_per_epoch_test_value)
+        print('-'*30)
+        print('Creating and compiling model...')
+        print('-'*30)
+        model = get_unet()
+        filepath="weights/weights-improvement-flod:"+str(fold_number)+"-{epoch:02d}-{val_loss:.2f}.hdf5"
+        #filepath='weights.h5'
+        model_checkpoint = ModelCheckpoint(filepath, monitor='val_loss', verbose=1, save_best_only= True)
+
+        print('-'*30)
+        print('Fitting model...')
+        print('-'*30)
+        """history = model.fit(imgs_train, imgs_mask_train, batch_size=32, nb_epoch=100, verbose=1, shuffle=True,
+                  validation_split=0.2,
+                  callbacks=[model_checkpoint])"""
+        history =model.fit_generator(generator(train_id, batch_size),
+                        steps_per_epoch=steps_per_epoch_value, epochs=100,validation_data=generator_validation(val_id,batch_size),
+                             validation_steps=steps_per_epoch_validation_value,
+                                callbacks=[model_checkpoint])
+        # list all data in history
+        print(history.history.keys())
+        # summarize history for accuracy
+        plt.plot(history.history['dice_coef'])
+        plt.plot(history.history['val_dice_coef'])
+        plt.title('model accuracy')
+        plt.ylabel('dice_coef')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'test'], loc='upper left')
+        #plt.show()
+        plt.savefig('output/accuracy'+str(fold_number)+'.png')
+        plt.close()
+
+        # summarize history for loss
+        plt.plot(history.history['loss'])
+        plt.plot(history.history['val_loss'])
+        plt.title('model loss')
+        plt.ylabel('loss')
+        plt.xlabel('epoch')
+        plt.legend(['train', 'test'], loc='upper left')
+        #plt.show()
+        plt.savefig('output/loss'+str(fold_number)+'.png')
+        print('-'*30)
+        print('evaluting on test data...')
+        print('-'*30)
+        #score = model.evaluate(imgs_test, imgs_test_mask_true, verbose=1)
+        scores =model.evaluate_generator(generator(test_id, batch_size), steps=steps_per_epoch_test_value, max_queue_size=10, workers=1, use_multiprocessing=False, verbose=1)
+        cvscores.append(scores[1]* 100)
+
+        print(scores)         
+        elapsed = timeit.default_timer() - start_time
+        print('time---%f'%elapsed)
+        print(30*'-')
+    print("%.2f%% (+/- %.2f%%)" % (np.mean(cvscores), np.std(cvscores)))
+
 
 def predict():
     print('-'*30)
@@ -572,11 +772,53 @@ def predict_modified1(test_npy,test_mask_npy):
         writer = csv.writer(f)
         writer.writerows(np.column_stack((imgs_id,a)))
 
+def predict_modified2():
+
+    print('-'*30)
+    print('Creating and compiling model...')
+    print('-'*30)
+    model = get_unet()
+  
+
+    print('-'*30)
+    print('Loading saved weights...')
+    print('-'*30)
+    model.load_weights('weights.h5')
+   
+    print('-'*30)
+    print('Predicting masks on test data...')
+    print('-'*30)
+    
+    train_id,val_id=split_train_val('train/')
+    #for image_name in  train_id:
+       # print(image_name)
+    #train_id,train_mask_id=get_train_file_names('train/')
+    #print(len(train_id)) 
+    steps_per_epoch_value=len(train_id)/batch_size
+    print (steps_per_epoch_value)
+    #validation_id,validation_mask_id=get_train_file_names('Validation/')
+    #print(len(train_id)) 
+    steps_per_epoch_validation_value=len(val_id)/batch_size
+    print (steps_per_epoch_validation_value)
+    #imgs_mask_test = model.predict(imgs_test, verbose=1)
+
+    #np.save('imgs_mask_test_pred.npy', imgs_mask_test)
+    print('-'*30)
+    print('evaluting on test data...')
+    print('-'*30)
+    #score = model.evaluate(imgs_test, imgs_test_mask_true, verbose=1)
+    score =model.evaluate_generator(generator(train_id, batch_size), steps=steps_per_epoch_value, max_queue_size=10, workers=1, use_multiprocessing=False, verbose=1)
+
+    print(score)
+    
+
 
 
 if __name__ == '__main__':
     #train_and_predict()
-
-    train()
+   
+    #train()
+     train1('train1/')
+    #predict_modified2()
     # predict_modified1('imgs_test1.npy','imgs_mask_test1.npy')
     
